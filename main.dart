@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'package:ftpconnect/ftpconnect.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -306,6 +306,7 @@ Widget build(BuildContext context) {
           Text('Cep Telefon Numarası: ${afetzede.temelVitalBilgiler}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Text('Kayıp Yakın Sayısı: ${afetzede.sosyalPsikolojikSorunlar}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Text('Kan Grubu: ${afetzede.riskFaktorleri}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          
           ],
         ),
       ),
@@ -331,6 +332,8 @@ class Afetzede {
   final String sosyalPsikolojikSorunlar;
   final String riskFaktorleri;
 
+  
+
   Afetzede({
     required this.id,
     required this.ad,
@@ -344,6 +347,8 @@ class Afetzede {
     required this.temelVitalBilgiler,
     required this.sosyalPsikolojikSorunlar,
     required this.riskFaktorleri,
+
+    
   });
 }
 
@@ -369,6 +374,8 @@ class _YeniAfetzedeEklemeSayfasiState extends State<YeniAfetzedeEklemeSayfasi> {
   String temelVitalBilgiler = '';
   String sosyalPsikolojikSorunlar = '';
   String riskFaktorleri = '';
+  
+  
 
 
   Future<void> requestStoragePermission() async {
@@ -402,6 +409,49 @@ TextEditingController _healthproblemsController = TextEditingController();
 TextEditingController _basicvitalinformationsController = TextEditingController();
 TextEditingController _socialproblemsController = TextEditingController();
 TextEditingController _riskfactorsController = TextEditingController();
+TextEditingController _konumUrl = TextEditingController();
+
+
+
+
+
+
+Future<String> getirKonum() async {
+
+  
+  
+  
+  LocationPermission permission;
+
+  // Konum hizmetlerinin açık olduğunu kontrol edin
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    return Future.error('Konum hizmetleri devre dışı bırakıldı.');
+  }
+
+  // Konum iznini kontrol edin
+  permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.deniedForever) {
+    return Future.error(
+        'Konum izinleri kalıcı olarak reddedildi. Ayarları değiştirin.');
+  }
+
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission != LocationPermission.whileInUse &&
+        permission != LocationPermission.always) {
+      return Future.error(
+          'Konum izinleri reddedildi. İzin vermek için ayarları değiştirin.');
+    }
+  }
+
+  // Geçerli konumu alın
+  Position position = await Geolocator.getCurrentPosition();
+
+  // Google Maps URL'sini oluşturun
+  return 'https://www.google.com/maps/search/?api=1&query=${position.latitude},${position.longitude}';
+}
+
 
   
 
@@ -428,7 +478,7 @@ Future<void> uploadFileToFtp(BuildContext context) async {
     final bool connected = await ftpClient.connect();
     if (connected) {
       // Afetzede verilerini içeren bir dosya oluşturun
-      final fileContent = "\nAfetzede Adı: ${_nameController.text}\nAfetzede Soyadı: ${_surnameController.text}\nAfetzede yaşı: ${_ageController.text}\nAfetzede Cinsiyeti: ${cinsiyet}\nBarınma Durumu: ${barinma}\nBeslenme durumu: ${beslenme}\nGiyim durumu: ${giyim}\nT.C.: ${_healthproblemsController.text}\nCep Telefon Numarası: ${_basicvitalinformationsController.text}\nKayıp Yakın Sayısı: ${_socialproblemsController.text}\nKan Grubu:  ${riskFaktorleri}\n";
+      final fileContent = "\nAfetzede Adı: ${_nameController.text}\nAfetzede Soyadı: ${_surnameController.text}\nAfetzede yaşı: ${_ageController.text}\nAfetzede Cinsiyeti: ${cinsiyet}\nBarınma Durumu: ${barinma}\nBeslenme durumu: ${beslenme}\nGiyim durumu: ${giyim}\nT.C.: ${_healthproblemsController.text}\nCep Telefon Numarası: ${_basicvitalinformationsController.text}\nKayıp Yakın Sayısı: ${_socialproblemsController.text}\nKan Grubu:  ${riskFaktorleri}\nAfetzedenin Konumu: ${_konumUrl.text}";
  // Afetzede verilerini buraya ekleyin
       final now = DateTime.now();
       final formattedDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
@@ -661,12 +711,29 @@ DropdownButtonFormField<String>(
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Lütfen afetzedenin cep telefonu numarasını yazın.';
+                      return 'Lütfen afetzedenin kayıp yakın sayısını yazın.';
                     }
                     return null;
                   },
                   onSaved: (value) {
                     sosyalPsikolojikSorunlar = value!;
+                  },
+                ),
+
+
+                                TextFormField(
+                                  enabled: false,
+                  controller: _konumUrl,
+                  decoration: const InputDecoration(labelText: 'Afetzedenin Konumu'),
+                  
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Afetzedenin Konumu alınamadı';
+                    }
+                    return null;
+                  },
+                  onSaved: (value) {
+                    
                   },
                 ),
 
@@ -719,6 +786,8 @@ DropdownButtonFormField<String>(
                             temelVitalBilgiler: temelVitalBilgiler,
                             sosyalPsikolojikSorunlar: sosyalPsikolojikSorunlar,
                             riskFaktorleri: riskFaktorleri,
+                            
+                            
                           ),
                         );
                       }
@@ -732,6 +801,29 @@ DropdownButtonFormField<String>(
                     },
                     child: const Text('Sunucuya Yükle'),
                   ),
+                  const SizedBox(height: 10),
+                  ElevatedButton(
+  onPressed: () async {
+    try {
+      String konumUrl = await getirKonum();
+
+      _konumUrl.text = konumUrl;
+      // 'konumUrl' değişkenini bir snackbar ile gösterin
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Konum URL: $konumUrl'),
+          
+        ),
+      );
+    } catch (e) {
+      // Konum bilgileri alınamazsa bir hata mesajı gösterin
+      print(e);
+    }
+  },
+  child: const Text('Konumu Getir'),
+),
+
+
                 ],
               ),
             ),
