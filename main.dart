@@ -4,6 +4,9 @@ import 'dart:io';
 import 'package:ftpconnect/ftpconnect.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:math';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Afet Hizli Kayit',
+      title: 'Afet Hızlı Kayıt Yazılımı',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -31,6 +34,18 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
   @override
+
+
+
+
+
+  
+
+
+
+
+
+
   _LoginScreenState createState() => _LoginScreenState();
 }
 
@@ -43,25 +58,26 @@ Future<bool> checkCredentials() async {
     final ftpConnect = FTPConnect('ftpupload.net',
         user: 'unaux_34139260', pass: 'mnk2jcccym');
     await ftpConnect.connect();
-    await ftpConnect.changeDirectory('htdocs');
-    final remoteFile = 'login.txt';
-
+    await ftpConnect.changeDirectory('htdocs/login');
+    
     final directory = await getApplicationDocumentsDirectory();
-    final localFile = File('${directory.path}/$remoteFile');
 
-    await ftpConnect.downloadFileWithRetry(remoteFile, localFile, pRetryCount: 2);
+    final remoteFiles = await ftpConnect.listDirectoryContentOnlyNames();
+    for (final remoteFile in remoteFiles) {
+      if (remoteFile.startsWith('login')) {
+        final localFile = File('${directory.path}/$remoteFile');
 
-    final fileContent = await localFile.readAsString();
-    final credentials = fileContent.trim().split('\n');
+        await ftpConnect.downloadFileWithRetry(remoteFile, localFile, pRetryCount: 2);
 
-    for (final credential in credentials) {
-      final parts = credential.split(':');
-      if (parts.length == 2) {
-        final username = parts[0];
-        final password = parts[1];
-        if (_usernameController.text == username &&
-            _passwordController.text == password) {
-          return true;
+        final fileContent = await localFile.readAsString();
+        final parts = fileContent.trim().split(':');
+        if (parts.length == 2) {
+          final username = parts[0];
+          final password = parts[1];
+          if (_usernameController.text == username &&
+              _passwordController.text == password) {
+            return true;
+          }
         }
       }
     }
@@ -76,18 +92,32 @@ Future<bool> checkCredentials() async {
 }
 
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Oturum Aç'),
       ),
+
+      
+
+
+
+
       body: Center(
+        
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+
+
+                      Opacity(
+          opacity: 0.5, // Solukluk seviyesi (0.0 - 1.0 aralığında)
+          child: Image.asset('assets/ahkay.jpg'),
+        ),
               TextFormField(
                 controller: _usernameController,
                 decoration: const InputDecoration(labelText: 'Kullanıcı Adı'),
@@ -146,30 +176,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  Future<bool> registerUser() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      return false;
-    }
-
-    final ftpConnect = FTPConnect('ftpupload.net',
-        user: 'unaux_34139260', pass: 'mnk2jcccym');
-    await ftpConnect.connect();
-    await ftpConnect.changeDirectory('htdocs');
-    final remoteFile = 'login.txt';
-
-    final directory = await getApplicationDocumentsDirectory();
-    final localFile = File('${directory.path}/$remoteFile');
-
-    await ftpConnect.downloadFileWithRetry(remoteFile, localFile, pRetryCount: 2);
-
-    await localFile.writeAsString(
-        '\n${_usernameController.text}:${_passwordController.text}\n',
-        mode: FileMode.append);
-
-    await ftpConnect.uploadFile(localFile);
-
-    return true;
+Future<bool> registerUser() async {
+  if (_passwordController.text != _confirmPasswordController.text) {
+    return false;
   }
+
+  final ftpConnect = FTPConnect('ftpupload.net',
+      user: 'unaux_34139260', pass: 'mnk2jcccym');
+  await ftpConnect.connect();
+  await ftpConnect.changeDirectory('htdocs/login');
+  
+  // Timestamp ile yeni bir dosya adı oluştur
+  final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+  final remoteFile = 'login_$timestamp.txt';
+
+  final directory = await getApplicationDocumentsDirectory();
+  final localFile = File('${directory.path}/$remoteFile');
+
+  await localFile.writeAsString(
+      '${_usernameController.text}:${_passwordController.text}');
+
+  await ftpConnect.uploadFile(localFile);
+
+  return true;
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -240,10 +271,28 @@ class _HomePageState extends State<HomePage> {
   List<Afetzede> afetzedeler = [];
 
   @override
+    void initState() {
+    super.initState();
+    loadAfetzedeler();
+  }
+    void loadAfetzedeler() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    List<String> jsonAfetzedeler = prefs.getStringList('afetzedeler') ?? [];
+    setState(() {
+      afetzedeler = jsonAfetzedeler.map((json) => Afetzede.fromJson(jsonDecode(json))).toList();
+    });
+  }
+    void saveAfetzedeler() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setStringList('afetzedeler', afetzedeler.map((afetzede) => jsonEncode(afetzede.toJson())).toList());
+  }
+
+
+
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Afet Hizli Kayit'),
+        title: const Text('Afet Hızlı Kayıt Yazılımı'),
       ),
       body: ListView.builder(
         itemCount: afetzedeler.length,
@@ -272,6 +321,7 @@ class _HomePageState extends State<HomePage> {
           if (yeniAfetzede != null) {
             setState(() {
               afetzedeler.add(yeniAfetzede as Afetzede);
+              saveAfetzedeler();
             });
           }
         },
@@ -297,6 +347,7 @@ Widget build(BuildContext context) {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Yaş: ${afetzede.yas}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Text('Yaş: ${afetzede.yas}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Text('Cinsiyet: ${afetzede.cinsiyet}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Text('Barınma: ${afetzede.barinma}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -332,6 +383,13 @@ class Afetzede {
   final String sosyalPsikolojikSorunlar;
   final String riskFaktorleri;
 
+
+
+  
+  // Afetzede nesnesini JSON formatına döken metot:
+
+        
+
   
 
   Afetzede({
@@ -348,8 +406,57 @@ class Afetzede {
     required this.sosyalPsikolojikSorunlar,
     required this.riskFaktorleri,
 
+
+    
+
     
   });
+
+  // Afetzede nesnesini JSON formatına döken metot:
+
+    Map<String, dynamic> toJson() => {
+        'id': id,
+        'ad': ad,
+        'soyad': soyad,
+        'yaş': yas,
+        'cinsiyet': cinsiyet,
+        'barınma': barinma,
+        'beslenme': beslenme,
+        'giyim': giyim,
+        'sağlık sorunları': saglikSorunlari,
+        'temel vital bilgiler': temelVitalBilgiler,
+        'sosyal sorunlar': sosyalPsikolojikSorunlar,
+        'risk faktörleri': riskFaktorleri,
+        };
+
+          // JSON formatındaki veriyi Afetzede nesnesine döken metot:
+  Afetzede.fromJson(Map<String, dynamic> json)
+      : id = json['id'],
+        ad = json['ad'],
+        soyad = json['soyad'],
+        yas = json['yaş'],
+        cinsiyet = json['cinsiyet'],
+        barinma = json['barınma'],
+        beslenme = json['beslenme'],
+        giyim = json['giyim'],
+        saglikSorunlari = json['sağlık sorunları'],
+        temelVitalBilgiler = json['temel vital bilgiler'],
+        sosyalPsikolojikSorunlar = json['sosyal sorunlar'],
+        riskFaktorleri = json['risk faktörleri'];
+
+
+
+
+
+
+
+
+        // ... diğer alanlar ...
+
+
+
+
+
 }
 
 class YeniAfetzedeEklemeSayfasi extends StatefulWidget {
@@ -362,6 +469,8 @@ class YeniAfetzedeEklemeSayfasi extends StatefulWidget {
 
 class _YeniAfetzedeEklemeSayfasiState extends State<YeniAfetzedeEklemeSayfasi> {
   final _formKey = GlobalKey<FormState>();
+
+  
 
   String ad = '';
   String soyad = '';
@@ -416,6 +525,11 @@ TextEditingController _konumUrl = TextEditingController();
 
 
 
+
+
+
+
+
 Future<String> getirKonum() async {
 
   
@@ -453,6 +567,32 @@ Future<String> getirKonum() async {
 }
 
 
+
+Future<String> createRandomFileName() async {
+  Random random = Random();
+  int randomNumber = random.nextInt(9000) + 1000; // 1000 ile 9999 arasında rastgele bir sayı oluşturuyoruz
+  
+  DateTime now = DateTime.now();
+  String formattedDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_';
+
+  String fileName = 'afetzede_$formattedDate$randomNumber.txt';
+  return fileName;
+
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
   
 
 
@@ -478,11 +618,14 @@ Future<void> uploadFileToFtp(BuildContext context) async {
     final bool connected = await ftpClient.connect();
     if (connected) {
       // Afetzede verilerini içeren bir dosya oluşturun
-      final fileContent = "\nAfetzede Adı: ${_nameController.text}\nAfetzede Soyadı: ${_surnameController.text}\nAfetzede yaşı: ${_ageController.text}\nAfetzede Cinsiyeti: ${cinsiyet}\nBarınma Durumu: ${barinma}\nBeslenme durumu: ${beslenme}\nGiyim durumu: ${giyim}\nT.C.: ${_healthproblemsController.text}\nCep Telefon Numarası: ${_basicvitalinformationsController.text}\nKayıp Yakın Sayısı: ${_socialproblemsController.text}\nKan Grubu:  ${riskFaktorleri}\nAfetzedenin Konumu: ${_konumUrl.text}";
+      final fileContent = "Afetzede Adı: ${_nameController.text}\nAfetzede Soyadı: ${_surnameController.text}\nAfetzede yaşı: ${_ageController.text}\nAfetzede Cinsiyeti: ${cinsiyet}\nBarınma Durumu: ${barinma}\nBeslenme durumu: ${beslenme}\nGiyim durumu: ${giyim}\nT.C.: ${_healthproblemsController.text}\nCep Telefon Numarası: ${_basicvitalinformationsController.text}\nKayıp Yakın Sayısı: ${_socialproblemsController.text}\nKan Grubu:  ${riskFaktorleri}\nAfetzedenin Konumu: ${_konumUrl.text}";
  // Afetzede verilerini buraya ekleyin
-      final now = DateTime.now();
-      final formattedDate = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-      final fileName = 'afetzede_$formattedDate.txt';
+      
+      
+      
+      
+      
+      final fileName = await createRandomFileName();
 
       // Uygulamanın belgeler dizinini alın ve dosyayı oluşturun
       final directory = await getApplicationDocumentsDirectory();
@@ -754,7 +897,7 @@ DropdownButtonFormField<String>(
   onSaved: (value) {
     riskFaktorleri = value!;
   },
-  items: <String>['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map<DropdownMenuItem<String>>((String value) {
+  items: <String>['A(+)', 'A(-)', 'B(+)', 'B(-)', 'AB(+)', 'AB(-)', 'O(+)', 'O(-)'].map<DropdownMenuItem<String>>((String value) {
     return DropdownMenuItem<String>(
       value: value,
       child: Text(value),
